@@ -11,6 +11,7 @@
   const PROGRESS_KEY = "netlab:progress:v1";
   const THEME_KEY = "netlab:theme";
   const LAST_KEY = "netlab:last-lesson";
+  const VIEW_KEY = "netlab:stage-view";
   const AUTO_MS = 7600;
 
   const ICON_PATHS = {
@@ -59,7 +60,10 @@
     left: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5"/></svg>',
     right: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>',
     trash: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M8 3.5h4M6 6l.8 11h6.4L14 6M8.5 9v5M11.5 9v5"/></svg>',
-    search: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="m13.2 13.2 3.8 3.8"/></svg>'
+    search: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="m13.2 13.2 3.8 3.8"/></svg>',
+    cube: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.8 16.5 6v8L10 17.2 3.5 14V6Z"/><path d="M3.5 6 10 9.2 16.5 6M10 9.2v8"/></svg>',
+    flat: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="5" width="14" height="10" rx="1.6"/><path d="M3 9h14"/></svg>',
+    fit: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 8V3.5H8M12 3.5h4.5V8M16.5 12v4.5H12M8 16.5H3.5V12"/></svg>'
   };
 
   const TONE_COLORS = {
@@ -106,12 +110,14 @@
   const state = {
     route: { view: "home" },
     progress: loadProgress(),
-    lesson: { id: null, step: 1, playing: false, speed: 1, timer: null },
+    lesson: { id: null, step: 1, playing: false, speed: 1, timer: null, iso: loadStagePref() === "iso", stageTab: "diagram" },
+    trace: null,
     practice: null,
     lab: null,
     cheat: { section: "layers", query: "" },
     search: { items: [], selected: 0, modalOpen: false },
     diagram: null,
+    iso: null,
     revealObserver: null
   };
 
@@ -378,6 +384,7 @@
     }
     state.route = route;
     stopPlayer();
+    if (route.view !== "learn" && state.iso) { state.iso.destroy(); state.iso = null; }
     if (SL.packetUI && SL.packetUI.stop) SL.packetUI.stop();
     document.body.dataset.view = route.view;
     closeSidebar();
@@ -385,7 +392,11 @@
 
     if (route.view === "home") renderHome();
     else if (route.view === "learn") renderLesson(route.lessonId, route.step);
-    else if (route.view === "packet" && SL.packetUI) SL.packetUI.render(view, route.scenarioId);
+    else if (route.view === "packet" && SL.packetUI) {
+      SL.packetUI.render(view, route.scenarioId);
+      const scenario = SL.packets && SL.packets.byId ? SL.packets.byId[route.scenarioId] : null;
+      document.title = scenario ? `${scenario.title} — NetLab` : "Packet Lab — NetLab";
+    }
     else if (route.view === "practice") renderPractice();
     else if (route.view === "lab") renderLab();
     else if (route.view === "cheatsheets") renderCheatsheets();
@@ -865,6 +876,13 @@
   function bindGlobalEvents() {
     window.addEventListener("hashchange", onRoute);
     window.addEventListener("resize", syncTopbarOffset);
+    let seqFitTimer = null;
+    const scheduleSeqFit = () => {
+      clearTimeout(seqFitTimer);
+      seqFitTimer = setTimeout(refitSequence, 180);
+    };
+    window.addEventListener("resize", scheduleSeqFit);
+    document.addEventListener("fullscreenchange", scheduleSeqFit);
     $("#themeBtn").addEventListener("click", toggleTheme);
     $("#searchBtn").addEventListener("click", openSearch);
     $("#menuBtn").addEventListener("click", toggleSidebar);
@@ -932,6 +950,12 @@
       } else if (e.code === "Space") {
         e.preventDefault();
         togglePlayer();
+      } else if (e.key === "0" && state.lesson.iso) {
+        e.preventDefault();
+        if (state.iso) state.iso.fit();
+      } else if (e.key.toLowerCase() === "t" && state.trace && !state.search.modalOpen) {
+        e.preventDefault();
+        setStageTab(state.lesson.stageTab === "sequence" ? "diagram" : "sequence");
       } else if (e.key.toLowerCase() === "r") {
         e.preventDefault();
         replayLesson();
@@ -944,6 +968,131 @@
   }
 
   /* ----------------------------------------------------------
+     Stage view (2D / isometric 3D)
+     ---------------------------------------------------------- */
+  function loadStagePref() {
+    try {
+      const saved = localStorage.getItem(VIEW_KEY);
+      if (saved) return saved;
+    } catch (err) { /* ignore */ }
+    return window.innerWidth >= 900 ? "iso" : "2d";
+  }
+
+  function stageHint() {
+    if (state.lesson.stageTab === "sequence") {
+      return "Nhấn một sự kiện để mở bước · T về sơ đồ · ← → chuyển bước";
+    }
+    return state.lesson.iso
+      ? "Kéo để rê · chụm hai ngón để phóng to · nhấp đúp hoặc 0 để vừa khung · T xem chuỗi gói tin"
+      : "← → chuyển bước · Space phát · R phát lại · T xem chuỗi gói tin";
+  }
+
+  function updateStageControls() {
+    const iso = state.lesson.iso;
+    const sequence = state.lesson.stageTab === "sequence";
+    const toggle = $('[data-action="toggle-iso"]', view);
+    if (toggle) {
+      toggle.hidden = sequence;
+      toggle.classList.toggle("is-on", iso);
+      toggle.innerHTML = `${iso ? UI_ICONS.flat : UI_ICONS.cube}<span>${iso ? "Xem 2D" : "Xem 3D"}</span>`;
+      toggle.title = iso ? "Chuyển về sơ đồ phẳng" : "Chuyển sang sơ đồ 3D";
+    }
+    const fitBtn = $('[data-action="iso-fit"]', view);
+    if (fitBtn) fitBtn.hidden = sequence || !iso;
+    const hint = $(".stage-hint", view);
+    if (hint) hint.textContent = stageHint();
+  }
+
+  function mountIso(lesson) {
+    const host = $("#isoHost");
+    if (!host || !window.NetLabIso) return false;
+    try {
+      state.iso = window.NetLabIso.create(host, lesson);
+    } catch (err) {
+      state.iso = null;
+    }
+    return !!state.iso;
+  }
+
+  function setStageView(iso) {
+    const lesson = lessonById[state.lesson.id];
+    if (!lesson || state.lesson.iso === iso) return;
+    if (iso && !window.NetLabIso) return;
+    state.lesson.iso = iso;
+    try { localStorage.setItem(VIEW_KEY, iso ? "iso" : "2d"); } catch (err) { /* ignore */ }
+    if (state.iso) { state.iso.destroy(); state.iso = null; }
+    const canvas = $("#stageCanvas");
+    if (!canvas) return;
+    if (iso) {
+      state.diagram = null;
+      canvas.classList.add("is-iso");
+      canvas.innerHTML = '<div class="iso-stage" id="isoHost"></div>';
+      if (!mountIso(lesson)) {
+        state.lesson.iso = false;
+        canvas.classList.remove("is-iso");
+        canvas.innerHTML = renderDiagram(lesson);
+      }
+    } else {
+      canvas.classList.remove("is-iso");
+      canvas.innerHTML = renderDiagram(lesson);
+    }
+    updateStageControls();
+    applyStep(lesson, state.lesson.step, { updateHash: false });
+    if (!state.lesson.iso) fitNodeLabels();
+  }
+
+  function updateStageTabs() {
+    $$('[data-action="stage-tab"]', view).forEach((btn) => {
+      const on = btn.dataset.tab === state.lesson.stageTab;
+      btn.classList.toggle("is-on", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+  }
+
+  function setStageTab(tab) {
+    const lesson = lessonById[state.lesson.id];
+    if (!lesson || !state.trace || tab === state.lesson.stageTab) return;
+    state.lesson.stageTab = tab;
+    if (state.iso) { state.iso.destroy(); state.iso = null; }
+    const canvas = $("#stageCanvas");
+    if (!canvas) return;
+    if (tab === "sequence") {
+      state.diagram = null;
+      canvas.classList.remove("is-iso");
+      canvas.classList.add("is-seq");
+      canvas.innerHTML = `<div class="seq-stage">${SL.trace.sequenceHTML(lesson, state.trace, state.lesson.step, canvas.clientWidth)}</div>`;
+    } else {
+      canvas.classList.remove("is-seq");
+      if (state.lesson.iso && window.NetLabIso) {
+        canvas.classList.add("is-iso");
+        canvas.innerHTML = '<div class="iso-stage" id="isoHost"></div>';
+        if (!mountIso(lesson)) {
+          state.lesson.iso = false;
+          canvas.classList.remove("is-iso");
+          canvas.innerHTML = renderDiagram(lesson);
+        }
+      } else {
+        canvas.innerHTML = renderDiagram(lesson);
+      }
+      fitNodeLabels();
+    }
+    updateStageTabs();
+    updateStageControls();
+    applyStep(lesson, state.lesson.step, { updateHash: false });
+  }
+
+  function refitSequence() {
+    if (state.route.view !== "learn" || state.lesson.stageTab !== "sequence" || !state.trace) return;
+    const lesson = lessonById[state.lesson.id];
+    const canvas = $("#stageCanvas");
+    if (!lesson || !canvas) return;
+    const host = $(".seq-stage", canvas);
+    if (!host) return;
+    host.innerHTML = SL.trace.sequenceHTML(lesson, state.trace, state.lesson.step, canvas.clientWidth);
+    SL.trace.focusSequence(host, state.lesson.step);
+  }
+
+  /* ----------------------------------------------------------
      Lesson engine
      ---------------------------------------------------------- */
   function renderLesson(lessonId, stepIndex) {
@@ -953,10 +1102,14 @@
       return;
     }
     const index = clamp(stepIndex || 1, 1, lesson.steps.length);
+    if (state.iso) { state.iso.destroy(); state.iso = null; }
+    state.diagram = null;
     state.lesson.id = lesson.id;
     state.lesson.step = index;
     state.lesson.playing = false;
     state.lesson.speed = 1;
+    state.lesson.stageTab = "diagram";
+    state.trace = SL.trace ? SL.trace.build(lesson) : null;
     stopPlayer();
     try { localStorage.setItem(LAST_KEY, lesson.id); } catch (err) { /* ignore */ }
 
@@ -1006,6 +1159,12 @@
                   <button class="stage-icon-btn" type="button" data-action="replay" title="Phát lại từ đầu">
                     ${UI_ICONS.replay}<span>Phát lại</span>
                   </button>
+                  <button class="stage-icon-btn view-toggle${state.lesson.iso ? " is-on" : ""}" type="button" data-action="toggle-iso" title="${state.lesson.iso ? "Chuyển về sơ đồ phẳng" : "Chuyển sang sơ đồ 3D"}">
+                    ${state.lesson.iso ? UI_ICONS.flat : UI_ICONS.cube}<span>${state.lesson.iso ? "Xem 2D" : "Xem 3D"}</span>
+                  </button>
+                  <button class="stage-icon-btn" type="button" data-action="iso-fit" title="Thu vừa khung (0)"${state.lesson.iso ? "" : " hidden"}>
+                    ${UI_ICONS.fit}<span>Vừa khung</span>
+                  </button>
                   <button class="stage-icon-btn" type="button" data-action="fullscreen" title="Xem toàn màn hình">
                     ${UI_ICONS.full}<span>Toàn màn hình</span>
                   </button>
@@ -1019,9 +1178,16 @@
                 <div class="metric-strip" id="metricStrip">${metricStripHTML(lesson, lesson.steps[index - 1])}</div>
               </div>
 
-              <div class="stage-canvas" id="stageCanvas">
-                ${renderDiagram(lesson)}
+              ${state.trace && state.trace.events.length ? `<div class="stage-tabs" role="tablist" aria-label="Cách xem sân khấu">
+                <button class="stage-tab is-on" type="button" role="tab" aria-selected="true" data-action="stage-tab" data-tab="diagram">Sơ đồ</button>
+                <button class="stage-tab" type="button" role="tab" aria-selected="false" data-action="stage-tab" data-tab="sequence">Chuỗi gói tin <span>${state.trace.events.length}</span></button>
+              </div>` : ""}
+
+              <div class="stage-canvas${state.lesson.iso ? " is-iso" : ""}" id="stageCanvas">
+                ${state.lesson.iso ? '<div class="iso-stage" id="isoHost"></div>' : renderDiagram(lesson)}
               </div>
+
+              ${state.trace && state.trace.events.length ? SL.trace.tableHTML(state.trace, index) : ""}
 
               <div class="stage-legend">
                 <div class="legend">
@@ -1029,7 +1195,7 @@
                   <span class="legend-item"><i class="legend-swatch" style="--sw:var(--mint)"></i>Dữ liệu / chuyển tiếp</span>
                   <span class="legend-item"><i class="legend-swatch" style="--sw:var(--coral)"></i>Phản hồi / ACK</span>
                 </div>
-                <span class="stage-hint">← → chuyển bước · Space phát · R phát lại</span>
+                <span class="stage-hint">${stageHint()}</span>
               </div>
 
               <div class="stage-player">
@@ -1055,6 +1221,15 @@
       </div>`;
 
     state.lesson.step = index;
+    if (state.lesson.iso && !mountIso(lesson)) {
+      state.lesson.iso = false;
+      const canvas = $("#stageCanvas");
+      if (canvas) {
+        canvas.classList.remove("is-iso");
+        canvas.innerHTML = renderDiagram(lesson);
+      }
+      updateStageControls();
+    }
     applyStep(lesson, index, { updateHash: false, initial: true });
     fitNodeLabels();
     if (document.fonts && document.fonts.ready) {
@@ -1406,6 +1581,11 @@
     });
 
     renderPackets(activeEdges);
+    if (state.iso) state.iso.applyStep(step);
+    if (SL.trace) {
+      if (state.lesson.stageTab === "sequence") SL.trace.focusSequence($(".seq-stage", view), index);
+      SL.trace.focusTable($("#traceTable"), index);
+    }
     requestAnimationFrame(() => centerActiveNodes(focus));
 
     const panel = $("#stepPanel");
@@ -1433,7 +1613,7 @@
     state.lesson.id = lesson.id;
     updatePlayerUI(lesson, index);
 
-    if (state.diagram && options.updateHash !== false) {
+    if ((state.diagram || state.iso || state.lesson.stageTab === "sequence") && options.updateHash !== false) {
       try { history.replaceState(null, "", `#/learn/${lesson.id}/${index}`); } catch (err) { /* ignore */ }
     }
     if (!options.initial) {
@@ -2298,6 +2478,10 @@
     const action = btn.dataset.action;
 
     if (action === "fullscreen") toggleFullscreen();
+    else if (action === "toggle-iso") setStageView(!state.lesson.iso);
+    else if (action === "iso-fit") { if (state.iso) state.iso.fit(); }
+    else if (action === "stage-tab") setStageTab(btn.dataset.tab);
+    else if (action === "decode-link") { /* theo liên kết mở bản giải mã */ }
     else if (action === "toggle-play") togglePlayer();
     else if (action === "replay") replayLesson();
     else if (action === "prev-step") goToStep(state.lesson.step - 1);
