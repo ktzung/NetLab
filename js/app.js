@@ -688,7 +688,7 @@
             </details>
             <details class="faq-item">
               <summary>Có thể thêm bài học mới không?</summary>
-              <p>Có. Dữ liệu bài học nằm trong <code>js/data.js</code>, <code>js/data2.js</code> và <code>js/data3.js</code>; các kịch bản byte-level nằm trong <code>js/packets.js</code>. Thêm một object bài học vào module là sidebar, tìm kiếm và tiến độ tự cập nhật.</p>
+              <p>Có. Dữ liệu bài học nằm trong <code>js/data.js</code> đến <code>js/data7.js</code>; các kịch bản byte-level nằm trong <code>js/packets.js</code>. Thêm một object bài học vào module là sidebar, tìm kiếm và tiến độ tự cập nhật.</p>
             </details>
             <details class="faq-item">
               <summary>Dùng trên điện thoại hoặc máy chiếu được không?</summary>
