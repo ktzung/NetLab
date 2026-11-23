@@ -3,34 +3,174 @@
   "use strict";
 
   const NS = "http://www.w3.org/2000/svg";
-  const PANEL_W = 170;
-  const PANEL_H = 50;
-  const GAP_X = 124;
-  const GAP_Y = 62;
-  const BASE_RX = 40;
-  const BASE_RY = 20;
-  const LIFT = 56;
+  const GAP_X = 138;
+  const GAP_Y = 72;
+  const BASE_RX = 42;
+  const BASE_RY = 18;
 
-  const ICONS = {
-    client: '<circle cx="10" cy="6.5" r="3.2"/><path d="M4 17c.6-3.2 3-5 6-5s5.4 1.8 6 5"/>',
-    dns: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.2 2 3.4 4.4 3.4 7s-1.2 5-3.4 7c-2.2-2-3.4-4.4-3.4-7S7.8 5 10 3Z"/>',
-    lb: '<rect x="3" y="3.5" width="14" height="4" rx="1.3"/><rect x="3" y="12.5" width="5.5" height="4" rx="1"/><rect x="11.5" y="12.5" width="5.5" height="4" rx="1"/><path d="M10 7.5v2.5M6 12.5v-2.5h8v2.5"/>',
-    server: '<rect x="3" y="3" width="14" height="5.5" rx="1.5"/><rect x="3" y="11.5" width="14" height="5.5" rx="1.5"/><path d="M6 5.8h.01M6 14.2h.01M9 5.8h5M9 14.2h5"/>',
-    cache: '<path d="m11 2-6 9h4l-1 7 7-10h-4l1-6Z"/>',
-    db: '<ellipse cx="10" cy="4.8" rx="6.5" ry="2.6"/><path d="M3.5 4.8v10.4c0 1.4 2.9 2.6 6.5 2.6s6.5-1.2 6.5-2.6V4.8M3.5 10c0 1.4 2.9 2.6 6.5 2.6s6.5-1.2 6.5-2.6"/>',
-    queue: '<path d="M3 5h14M3 10h14M3 15h9"/><circle cx="16" cy="15" r="1.2"/>',
-    worker: '<circle cx="10" cy="10" r="3"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/>',
-    cdn: '<path d="M5.5 15.5h9a3.2 3.2 0 0 0 .5-6.4 5 5 0 0 0-9.7-1.2A3.8 3.8 0 0 0 5.5 15.5Z"/>',
-    gateway: '<rect x="3" y="3" width="14" height="14" rx="2.5"/><path d="M7 10h6M10 7v6"/>',
-    router: '<circle cx="5" cy="5" r="2"/><circle cx="15" cy="5" r="2"/><circle cx="10" cy="15" r="2"/><path d="M6.5 6.5 9 13M13.5 6.5 11 13M7 5h6"/>',
-    store: '<path d="M3 7.5V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7.5M2.5 7.5h15l-1.2-4H3.7l-1.2 4Z"/><path d="M8 9v5h4V9"/>',
-    presence: '<path d="M3 10a7 7 0 0 1 14 0M6 10a4 4 0 0 1 8 0M9 10a1 1 0 1 0 2 0"/>',
-    book: '<path d="M3 4.5h5.5A2.5 2.5 0 0 1 11 7v9a2.5 2.5 0 0 0-2.5-2H3zM17 4.5h-3.5A2.5 2.5 0 0 0 11 7v9a2.5 2.5 0 0 1 2.5-2H17z"/>',
-    star: '<path d="m10 2 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L2.2 7.7l5.4-.8z"/>',
-    road: '<path d="M6 3 4 17M14 3l2 14M10 4v3M10 10v3M10 16v1"/>',
-    home: '<path d="m3 9 7-6 7 6M5 8v9h10V8M8.5 17v-4.5h3V17"/>',
-    shield: '<path d="M10 2.5 16.5 5v5c0 3.6-2.6 6.4-6.5 7.5C6.1 16.4 3.5 13.6 3.5 10V5z"/><path d="m7.2 9.8 2 2 3.6-3.8"/>',
-    key: '<circle cx="7" cy="12.5" r="3"/><path d="m9.2 10.3 7-7M14 4.5l2 2M12 6.5l2 2"/>'
+  const p = (x, y) => `${x.toFixed(1)} ${y.toFixed(1)}`;
+
+  /* Khối hộp isometric: mặt trái, mặt phải, mặt trên. */
+  function prism(cx, cy, w, d, h, cls) {
+    const lx = cx - w / 2;
+    const rx = cx + w / 2;
+    const t = cy - h;
+    const extra = cls ? ` ${cls}` : "";
+    return `<path class="iso-face iso-face-l${extra}" d="M${p(lx, t)} L${p(cx, t + d / 2)} L${p(cx, cy + d / 2)} L${p(lx, cy)}Z"/>`
+      + `<path class="iso-face iso-face-r${extra}" d="M${p(cx, t + d / 2)} L${p(rx, t)} L${p(rx, cy)} L${p(cx, cy + d / 2)}Z"/>`
+      + `<path class="iso-face iso-face-t${extra}" d="M${p(lx, t)} L${p(cx, t - d / 2)} L${p(rx, t)} L${p(cx, t + d / 2)}Z"/>`;
+  }
+
+  /* Các dải ngang bám mặt trước, dùng cho khe server, gạch tường lửa. */
+  function slats(cx, cy, w, d, h, ys) {
+    return ys.map((y) => `<path class="iso-detail" d="M${p(cx - w / 2, cy - h + y)} L${p(cx, cy - h + y + d / 2)} L${p(cx + w / 2, cy - h + y)}"/>`).join("");
+  }
+
+  const ART = {
+    client: { h: 64, draw: () => `
+      ${prism(0, 0, 62, 36, 6)}
+      <path class="iso-detail" d="M-20 -8 L-3 -18M-14 -3 L3 -13"/>
+      <path class="iso-face iso-face-r iso-glass" d="M-27 -9 L1 -23 L1 -59 L-27 -45Z"/>
+      <path class="iso-detail" d="M-22 -15 L-4 -26 L-4 -52 L-22 -41Z"/>
+    ` },
+    phone: { h: 58, draw: () => `
+      <path class="iso-face iso-face-l" d="M-12 -46 L8 -53 L16 -9 L-4 -2 Z"/>
+      <path class="iso-face iso-face-r" d="M8 -53 L12 -50 L20 -6 L16 -9 Z"/>
+      <path class="iso-face iso-face-t" d="M-12 -46 L-8 -48 L12 -55 L8 -53 Z"/>
+      <path class="iso-glass" d="M-6 -42 L6 -46 L11 -14 L-1 -9 Z"/>
+      <path class="iso-detail" d="M-3 -37 L4 -40"/>
+      <circle class="iso-detail" cx="7" cy="-7" r="1.7"/>
+    ` },
+    server: { h: 90, draw: () => `
+      ${prism(0, 0, 52, 34, 72)}
+      ${slats(0, 0, 52, 34, 72, [16, 38, 60])}
+      <circle class="iso-led" cx="-19" cy="-54" r="1.7"/>
+      <circle class="iso-led" cx="-19" cy="-32" r="1.7"/>
+      <circle class="iso-led" cx="-19" cy="-10" r="1.7"/>
+      <path class="iso-detail" d="M8 -78 L20 -84M8 -72 L26 -80"/>
+    ` },
+    dns: { h: 92, draw: () => `
+      ${prism(0, 0, 44, 30, 58)}
+      ${slats(0, 0, 44, 30, 58, [14, 34])}
+      <circle class="iso-face iso-face-t" cx="0" cy="-74" r="12"/>
+      <ellipse class="iso-detail" cx="0" cy="-74" rx="12" ry="4.5"/>
+      <path class="iso-detail" d="M0 -86 V-62M-12 -74 H12"/>
+    ` },
+    db: { h: 64, draw: () => `
+      <path class="iso-face iso-face-l" d="M-26 -50 V0 A26 10 0 0 0 26 0 V-50 Z"/>
+      <path class="iso-face iso-face-r" d="M0 -50 V0 A26 10 0 0 0 26 0 V-50 Z"/>
+      <ellipse class="iso-face iso-face-t" cx="0" cy="-50" rx="26" ry="10"/>
+      <path class="iso-detail" d="M-25 -34 A25 9 0 0 0 25 -34"/>
+      <path class="iso-detail" d="M-25 -17 A25 9 0 0 0 25 -17"/>
+    ` },
+    router: { h: 50, draw: () => `
+      ${prism(0, 0, 56, 32, 12)}
+      <path class="iso-detail" d="M-12 -22 V-44M12 -16 V-38"/>
+      <circle class="iso-signal" cx="-12" cy="-44" r="1.8" fill="currentColor"/>
+      <circle class="iso-signal" cx="12" cy="-38" r="1.8" fill="currentColor"/>
+      <circle class="iso-led" cx="-16" cy="-7" r="1.6"/>
+      <circle class="iso-led" cx="-9" cy="-4" r="1.6"/>
+      <circle class="iso-led" cx="-2" cy="-1" r="1.6"/>
+      <circle class="iso-led" cx="5" cy="2" r="1.6"/>
+    ` },
+    switch: { h: 38, draw: () => `
+      ${prism(0, 0, 62, 34, 16)}
+      <circle class="iso-led" cx="-20" cy="-10" r="1.5"/>
+      <circle class="iso-led" cx="-12" cy="-6" r="1.5"/>
+      <circle class="iso-led" cx="-4" cy="-2" r="1.5"/>
+      <circle class="iso-led" cx="4" cy="2" r="1.5"/>
+      <circle class="iso-led" cx="12" cy="6" r="1.5"/>
+      <path class="iso-detail" d="M-10 -24 L6 -32M6 -32 L1 -32M6 -32 L5 -27"/>
+    ` },
+    lb: { h: 50, draw: () => `
+      ${prism(0, 0, 50, 30, 24)}
+      <path class="iso-signal" d="M0 -44 V-34M0 -34 L-11 -26M0 -34 L11 -26"/>
+      <circle class="iso-signal" cx="-11" cy="-26" r="2.2" fill="currentColor"/>
+      <circle class="iso-signal" cx="11" cy="-26" r="2.2" fill="currentColor"/>
+    ` },
+    firewall: { h: 52, draw: () => `
+      ${prism(0, 0, 54, 34, 30)}
+      ${slats(0, 0, 54, 34, 30, [8, 16, 24])}
+      <path class="iso-face iso-face-t" d="M10 -40 L18 -36 V-26 C18 -20 14 -15 10 -12 C6 -15 2 -20 2 -26 V-36 Z"/>
+      <path class="iso-detail" d="M5 -27 L9 -23 L15 -30"/>
+    ` },
+    gateway: { h: 46, draw: () => `
+      ${prism(0, 0, 50, 30, 26)}
+      <path class="iso-detail" d="M-14 -22 L-14 -10 L2 -2 L2 -14Z"/>
+      <circle class="iso-signal" cx="18" cy="-33" r="3"/>
+      <path class="iso-detail" d="M14 -37 L22 -29M22 -37 L14 -29"/>
+    ` },
+    cloud: { h: 68, draw: () => `
+      <path class="iso-face iso-face-t iso-cloud" d="M-42 -20c-9 0-16-6-16-14 0-7 5-13 12-14 2-9 10-16 19-16 7 0 13 4 16 10 2-1 4-2 7-2 9 0 16 7 16 16 9 0 16 6 16 15 0 9-7 15-16 15Z"/>
+      <path class="iso-detail" d="M-30 -34c2-6 8-10 14-10M22 -28c5 0 9 3 10 8"/>
+    ` },
+    cache: { h: 54, draw: () => `
+      ${prism(0, 0, 42, 28, 36)}
+      <path class="iso-face iso-face-t iso-bolt" d="M4 -8 L-6 -8 L-1 -19 L-9 -19 L4 -36 L0 -24 L8 -24Z"/>
+    ` },
+    ap: { h: 52, draw: () => `
+      <path class="iso-face iso-face-l" d="M-24 -6 V0 A24 9 0 0 0 24 0 V-6 Z"/>
+      <ellipse class="iso-face iso-face-t" cx="0" cy="-6" rx="24" ry="9"/>
+      <circle class="iso-led" cx="0" cy="-6" r="1.8"/>
+      <path class="iso-signal" d="M-12 -20 Q0 -30 12 -20M-20 -27 Q0 -43 20 -27M-28 -34 Q0 -56 28 -34"/>
+    ` },
+    person: { h: 54, draw: () => `
+      ${prism(0, 0, 26, 16, 5)}
+      <path class="iso-face iso-face-l" d="M-16 -10 C-16 -26 -7 -32 0 -32 C7 -32 16 -26 16 -10 Z"/>
+      <circle class="iso-face iso-face-t" cx="0" cy="-42" r="7"/>
+    ` },
+    stack: { h: 64, draw: () => [0, 1, 2, 3].map((k) => `<g transform="translate(0,${-k * 13})">${prism(0, 0, 56 - k * 3, 34, 5)}</g>`).join("") },
+    gear: { h: 54, draw: () => {
+      const teeth = Array.from({ length: 8 }, (_, i) => {
+        const a = (i * Math.PI) / 4;
+        return `<path class="iso-detail" d="M${p(Math.cos(a) * 15, -28 + Math.sin(a) * 15)} L${p(Math.cos(a) * 21, -28 + Math.sin(a) * 21)}"/>`;
+      }).join("");
+      return `${prism(0, 0, 26, 16, 6)}<circle class="iso-face iso-face-t" cx="0" cy="-28" r="15"/>${teeth}<circle class="iso-detail" cx="0" cy="-28" r="5"/>`;
+    } },
+    home: { h: 56, draw: () => {
+      const w = 46; const d = 30; const h = 22;
+      const lx = -w / 2; const rx = w / 2; const t = -h; const apex = -h - 26;
+      return `${prism(0, 0, w, d, h)}
+        <path class="iso-face iso-face-r" d="M${p(0, t - d / 2)} L${p(rx, t)} L${p(0, apex)}Z"/>
+        <path class="iso-face iso-face-l" d="M${p(lx, t)} L${p(0, t - d / 2)} L${p(0, apex)}Z"/>
+        <path class="iso-face iso-face-r" d="M${p(rx, t)} L${p(0, t + d / 2)} L${p(0, apex)}Z"/>
+        <path class="iso-face iso-face-l" d="M${p(0, t + d / 2)} L${p(lx, t)} L${p(0, apex)}Z"/>
+        <path class="iso-face iso-face-t" d="M8 -2 L18 -7 L18 -19 L8 -14Z"/>`;
+    } },
+    shield: { h: 56, draw: () => `
+      ${prism(0, 0, 24, 14, 4)}
+      <path class="iso-face iso-face-t" d="M0 -52 L18 -45 V-29 C18 -15 9 -6 0 -2 C-9 -6 -18 -15 -18 -29 V-45Z"/>
+      <path class="iso-detail" d="M-7 -29 L-1 -23 L8 -33"/>
+    ` },
+    star: { h: 54, draw: () => `
+      ${prism(0, 0, 24, 14, 4)}
+      <path class="iso-face iso-face-t" d="M0 -50 L5 -39 L17 -38 L8 -30 L11 -18 L0 -25 L-11 -18 L-8 -30 L-17 -38 L-5 -39Z"/>
+    ` },
+    key: { h: 54, draw: () => `
+      ${prism(0, 0, 24, 14, 4)}
+      <circle class="iso-face iso-face-t" cx="0" cy="-40" r="10"/>
+      <circle class="iso-detail" cx="0" cy="-40" r="4"/>
+      <path class="iso-signal" d="M0 -30 V-10M0 -16 H8M0 -11 H6"/>
+    ` },
+    cert: { h: 70, draw: () => `
+      ${prism(0, 0, 22, 14, 4)}
+      <path class="iso-face iso-face-t" d="M-20 -8 L16 -24 L16 -66 L-20 -50Z"/>
+      <path class="iso-detail" d="M-13 -20 L9 -29M-13 -28 L9 -37M-13 -36 L2 -43"/>
+      <circle class="iso-signal" cx="8" cy="-20" r="5"/>
+      <path class="iso-signal" d="M6 -16 L4 -9M10 -16 L12 -9"/>
+    ` },
+    camera: { h: 46, draw: () => `
+      ${prism(0, 0, 40, 24, 20)}
+      <circle class="iso-face iso-face-t" cx="10" cy="-10" r="8"/>
+      <circle class="iso-detail" cx="10" cy="-10" r="3.5"/>
+      <path class="iso-signal" d="M-6 -32 V-44M-9 -44 H-3"/>
+    ` },
+    link: { h: 44, draw: () => `
+      <ellipse class="iso-face iso-face-t" cx="-38" cy="0" rx="8" ry="3.5"/>
+      <ellipse class="iso-face iso-face-t" cx="38" cy="0" rx="8" ry="3.5"/>
+      <path class="iso-signal iso-dash" d="M-34 -5 Q0 -38 34 -5"/>
+      <path class="iso-signal" d="M26 -14 L34 -5 L24 -4"/>
+    ` }
   };
 
   const TONES = {
@@ -39,6 +179,26 @@
     router: "violet", store: "green", presence: "violet", book: "amber", star: "amber",
     road: "amber", home: "amber", shield: "green", key: "amber"
   };
+
+  /* Chọn hình theo loại node, ưu tiên nhãn khi nhãn nói rõ thiết bị. */
+  function artKind(node) {
+    const type = node.type;
+    const text = String(node.label || "").toLowerCase();
+    if (/^l[1-7]\s*·/.test(text)) return "stack";
+    if (/kẻ tấn công|attacker/.test(text)) return "star";
+    if (/điện thoại|smartphone|\bphone\b|mobile/.test(text)) return "phone";
+    if (/wi-?fi|access point|\bap\b|enodeb|gnb|trạm gốc/.test(text)) return "ap";
+    if (/firewall|ips|tường lửa/.test(text)) return "firewall";
+    if (/camera/.test(text)) return "camera";
+    if (type === "cdn") return /internet|isp|ixp|upstream|mạng/.test(text) ? "cloud" : "server";
+    if (type === "lb") return /switch|ixp|liên kết|l2|ethernet/.test(text) ? "switch" : "lb";
+    if (type === "router" && /đường truyền|kênh|liên kết|vật lý|l1|l2|sóng/.test(text)) return "link";
+    if (type === "presence") return "person";
+    if (type === "book" || type === "queue") return "stack";
+    if (type === "road") return "link";
+    if (type === "store") return "cert";
+    return ART[type] ? type : "server";
+  }
 
   const esc = (v) => String(v)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -94,11 +254,57 @@
         const row = i - (group.length - 1) / 2;
         const x = (lv - row) * GAP_X;
         const y = (lv + row) * GAP_Y;
-        const pillar = LIFT;
-        placed.push({ ...n, lv, row, ux: x, uy: y, pillar, tone: TONES[n.type] || "blue" });
+        placed.push({ ...n, lv, row, ux: x, uy: y, art: artKind(n), tone: TONES[n.type] || "blue" });
       });
     });
     const nodeAt = new Map(placed.map((n) => [n.id, n]));
+    /* Nhãn đặt phía xa hàng xóm để không nằm trên đường nối: hàng xóm ở dưới thì nhãn ở trên. */
+    const dySum = new Map();
+    lesson.edges.forEach((edge) => {
+      const a = nodeAt.get(edge.from);
+      const b = nodeAt.get(edge.to);
+      if (!a || !b) return;
+      dySum.set(a.id, (dySum.get(a.id) || 0) + (b.uy - a.uy));
+      dySum.set(b.id, (dySum.get(b.id) || 0) + (a.uy - b.uy));
+    });
+    placed.forEach((n) => { n.labelAbove = dySum.has(n.id) ? dySum.get(n.id) >= 0 : false; });
+
+    /* Dời nhãn sang bên trái/phải hoặc đổi trên/dưới khi hai nhãn chạm nhau. */
+    function labelSize(n) {
+      return Math.max(44, String(n.label || "").length * 6.6, String(n.sub || "").length * 5.5);
+    }
+    function labelRect(n, above, dx) {
+      const w = labelSize(n);
+      const top = above ? n.uy - ART[n.art].h - 44 : n.uy + 14;
+      return { x: n.ux + dx - w / 2, y: top, w, h: 34 };
+    }
+    function artRect(n) {
+      return { x: n.ux - 32, y: n.uy - ART[n.art].h, w: 64, h: ART[n.art].h + 12 };
+    }
+    function share(a, b) {
+      const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      return w > 2 && h > 2 ? w * h : 0;
+    }
+    const taken = [];
+    [...placed].sort((a, b) => (a.uy - b.uy) || (a.ux - b.ux)).forEach((n) => {
+      const own = artRect(n);
+      const others = placed.filter((o) => o !== n).map(artRect);
+      let best = null;
+      [n.labelAbove, !n.labelAbove].forEach((above, sideRank) => {
+        [-36, -18, 0, 18, 36].forEach((dx) => {
+          const rect = labelRect(n, above, dx);
+          let cost = sideRank * 6 + Math.abs(dx) * 0.6;
+          taken.forEach((t) => { cost += share(rect, t) * 3; });
+          others.forEach((o) => { cost += share(rect, o) * 1.2; });
+          cost += share(rect, own) * 0.2;
+          if (!best || cost < best.cost) best = { above, dx, cost };
+        });
+      });
+      n.labelAbove = best.above;
+      n.labelDx = best.dx;
+      taken.push(labelRect(n, n.labelAbove, n.labelDx));
+    });
     const edgeGeo = lesson.edges.map((edge) => {
       const a = nodeAt.get(edge.from);
       const b = nodeAt.get(edge.to);
@@ -129,10 +335,11 @@
     const maxU = Math.max(...placed.map((n) => n.lv)) + 2.2;
     const minV = Math.min(...placed.map((n) => n.row)) - 2.2;
     const maxV = Math.max(...placed.map((n) => n.row)) + 2.2;
-    let minXp = Math.min(...placed.map((n) => n.ux)) - PANEL_W / 2 - 22;
-    let maxXp = Math.max(...placed.map((n) => n.ux)) + PANEL_W / 2 + 22;
-    let minYp = Math.min(...placed.map((n) => n.uy - n.pillar - PANEL_H)) - 20;
-    let maxYp = Math.max(...placed.map((n) => n.uy)) + BASE_RY + 26;
+    const halfLabel = (n) => Math.min(84, Math.max(40, String(n.label || "").length * 3.4)) + Math.abs(n.labelDx || 0);
+    let minXp = Math.min(...placed.map((n) => n.ux + (n.labelDx || 0) - halfLabel(n) - 14));
+    let maxXp = Math.max(...placed.map((n) => n.ux + (n.labelDx || 0) + halfLabel(n) + 14));
+    let minYp = Math.min(...placed.map((n) => n.uy - ART[n.art].h - (n.labelAbove ? 54 : 16)));
+    let maxYp = Math.max(...placed.map((n) => n.uy + (n.labelAbove ? 28 : 52)));
     const targetRatio = 1.68;
     if ((maxXp - minXp) / (maxYp - minYp) < targetRatio) {
       const extra = (maxYp - minYp) * targetRatio - (maxXp - minXp);
@@ -164,27 +371,20 @@
   }
 
   function nodeMarkup(node) {
-    const label = cut(node.label, 19);
-    const sub = cut(node.sub, 22);
-    const labelSize = label.length > 15 ? 10.4 : label.length > 11 ? 11.4 : 12.5;
-    const subSize = sub.length > 17 ? 7.8 : 8.5;
-    const icon = ICONS[node.type] || ICONS.server;
-    const top = -node.pillar - PANEL_H;
+    const label = cut(node.label, 22);
+    const sub = cut(node.sub, 26);
+    const art = ART[node.art] || ART.server;
     const toneKey = node.tone === "amber" ? "yellow" : node.tone;
     const toneStyle = `--tone:var(--${toneKey});--tone-soft:var(--${toneKey}-soft)`;
+    const labelY = node.labelAbove ? -(art.h + 34) : 25;
+    const subY = node.labelAbove ? -(art.h + 20) : 39;
     return `<g class="iso-node" data-node="${esc(node.id)}" style="${toneStyle}" transform="translate(${node.ux.toFixed(1)},${node.uy.toFixed(1)})">
+      <ellipse class="iso-shadow" cx="0" cy="6" rx="40" ry="12"/>
+      <ellipse class="iso-base-ring" cx="0" cy="6" rx="47" ry="15"/>
       <g class="iso-rig">
-        <ellipse class="iso-base" cx="0" cy="0" rx="${BASE_RX}" ry="${BASE_RY}"/>
-        <ellipse class="iso-base-ring" cx="0" cy="0" rx="${BASE_RX + 5}" ry="${BASE_RY + 3}"/>
-        <path class="iso-stem" d="M0 -1 V${top + PANEL_H}"/>
-        <circle class="iso-foot" cx="0" cy="0" r="3"/>
-        <g class="iso-panel" transform="translate(${-PANEL_W / 2},${top})">
-          <rect class="iso-panel-bg" width="${PANEL_W}" height="${PANEL_H}" rx="12"/>
-          <rect class="iso-icon-bg" x="9" y="9" width="32" height="32" rx="9"/>
-          <g class="iso-icon" transform="translate(16,16) scale(.9)" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icon}</g>
-          <text class="iso-label" x="49" y="22" style="font-size:${labelSize}px">${esc(label)}</text>
-          <text class="iso-sub" x="49" y="37" style="font-size:${subSize}px">${esc(sub)}</text>
-        </g>
+        <g class="iso-art">${art.draw()}</g>
+        <text class="iso-label" x="${(node.labelDx || 0).toFixed(1)}" y="${labelY}" text-anchor="middle">${esc(label)}</text>
+        <text class="iso-sub" x="${(node.labelDx || 0).toFixed(1)}" y="${subY}" text-anchor="middle">${esc(sub)}</text>
       </g>
       <title>${esc(node.label)} — ${esc(node.sub)}</title>
     </g>`;
@@ -239,8 +439,8 @@
         <g class="iso-grid" clip-path="url(#iso-platform-clip)">${grid}</g>
         <g class="iso-edges">${layout.edges.map(edgeMarkup).join("")}</g>
         <g class="iso-packets"></g>
-        <g class="iso-edge-labels">${edgeLabelsMarkup(layout)}</g>
         <g class="iso-nodes">${nodes.map(nodeMarkup).join("")}</g>
+        <g class="iso-edge-labels">${edgeLabelsMarkup(layout)}</g>
       </g>
     </svg>`;
     const svg = host.querySelector("svg");
