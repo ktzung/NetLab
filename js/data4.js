@@ -1,4 +1,4 @@
-/* NetLab — lộ trình theo Kurose & Ross, 8th edition: 8 chương, 35 bài */
+/* NetLab — lộ trình theo Kurose & Ross, 8th edition: 8 chương + phụ lục vận hành */
 (function () {
   "use strict";
 
