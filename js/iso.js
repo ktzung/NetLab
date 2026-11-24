@@ -203,6 +203,29 @@
   const esc = (v) => String(v)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const CAM_KEY = "netlab:iso-cam";
+  const LAYER_KEY = "netlab:iso-layers";
+  const Z_MIN = 0.72;
+  const Z_MAX = 2.4;
+
+  function loadView() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(CAM_KEY) || "{}");
+      return { zoom: clamp(Number(raw.zoom) || 1, Z_MIN, Z_MAX) };
+    } catch (err) { return { zoom: 1 }; }
+  }
+  function saveView(view) {
+    try { localStorage.setItem(CAM_KEY, JSON.stringify(view)); } catch (err) { /* ignore */ }
+  }
+  function loadLayers() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LAYER_KEY) || "{}");
+      return { labels: raw.labels !== false, grid: raw.grid !== false };
+    } catch (err) { return { labels: true, grid: true }; }
+  }
+  function saveLayers(layers) {
+    try { localStorage.setItem(LAYER_KEY, JSON.stringify(layers)); } catch (err) { /* ignore */ }
+  }
   const cut = (text, max) => {
     const s = String(text || "");
     return s.length > max ? s.slice(0, max - 1).trimEnd() + "…" : s;
@@ -218,6 +241,7 @@
       adj.get(e.from).push(e.to);
       adj.get(e.to).push(e.from);
     });
+    nodes.forEach((n) => { n.deg = (adj.get(n.id) || []).length; });
     const leftmost = nodes.reduce((a, b) => (a.x <= b.x ? a : b));
     const level = new Map([[leftmost.id, 0]]);
     const queue = [leftmost.id];
@@ -370,7 +394,7 @@
     return lines.join("");
   }
 
-  function nodeMarkup(node) {
+  function nodeMarkup(node, index) {
     const label = cut(node.label, 22);
     const sub = cut(node.sub, 26);
     const art = ART[node.art] || ART.server;
@@ -378,7 +402,9 @@
     const toneStyle = `--tone:var(--${toneKey});--tone-soft:var(--${toneKey}-soft)`;
     const labelY = node.labelAbove ? -(art.h + 34) : 25;
     const subY = node.labelAbove ? -(art.h + 20) : 39;
-    return `<g class="iso-node" data-node="${esc(node.id)}" style="${toneStyle}" transform="translate(${node.ux.toFixed(1)},${node.uy.toFixed(1)})">
+    const lines = [node.sub, `${node.deg || 0} liên kết`].filter(Boolean);
+    const tipData = { title: node.label, lines };
+    return `<g class="iso-node" data-node="${esc(node.id)}" style="${toneStyle};--i:${index}" transform="translate(${node.ux.toFixed(1)},${node.uy.toFixed(1)})" tabindex="0" role="button" data-tip="${esc(JSON.stringify(tipData))}" aria-label="${esc(`${node.label}. ${lines.join(". ")}`)}">
       <ellipse class="iso-shadow" cx="0" cy="6" rx="40" ry="12"/>
       <ellipse class="iso-base-ring" cx="0" cy="6" rx="47" ry="15"/>
       <g class="iso-rig">
@@ -386,7 +412,6 @@
         <text class="iso-label" x="${(node.labelDx || 0).toFixed(1)}" y="${labelY}" text-anchor="middle">${esc(label)}</text>
         <text class="iso-sub" x="${(node.labelDx || 0).toFixed(1)}" y="${subY}" text-anchor="middle">${esc(sub)}</text>
       </g>
-      <title>${esc(node.label)} — ${esc(node.sub)}</title>
     </g>`;
   }
 
@@ -420,6 +445,10 @@
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const grid = gridMarkup(layout);
     const nodes = [...layout.nodes].sort((a, b) => (a.lv + a.row) - (b.lv + b.row) || a.uy - b.uy);
+    const layers = loadLayers();
+    host.classList.add("is-fresh");
+    host.classList.toggle("hide-labels", !layers.labels);
+    host.classList.toggle("hide-grid", !layers.grid);
 
     host.innerHTML = `<svg class="iso-svg" role="img" aria-label="Sơ đồ isometric cho bài ${esc(lesson.title)}">
       <defs>
@@ -439,10 +468,18 @@
         <g class="iso-grid" clip-path="url(#iso-platform-clip)">${grid}</g>
         <g class="iso-edges">${layout.edges.map(edgeMarkup).join("")}</g>
         <g class="iso-packets"></g>
-        <g class="iso-nodes">${nodes.map(nodeMarkup).join("")}</g>
+        <g class="iso-nodes">${nodes.map((n, i) => nodeMarkup(n, i)).join("")}</g>
         <g class="iso-edge-labels">${edgeLabelsMarkup(layout)}</g>
       </g>
-    </svg>`;
+    </svg>
+    <div class="iso-tools" role="group" aria-label="Camera sân khấu">
+      <button type="button" data-iso-zoom="in" title="Phóng to" aria-label="Phóng to">+</button>
+      <button type="button" data-iso-zoom="out" title="Thu nhỏ" aria-label="Thu nhỏ">−</button>
+      <button type="button" data-iso-zoom="fit" title="Vừa khung (nhấp đúp)" aria-label="Thu vừa khung">⤢</button>
+      <button type="button" data-iso-layer="labels" class="${layers.labels ? "is-on" : ""}" aria-pressed="${layers.labels}" title="Ẩn/hiện nhãn thiết bị" aria-label="Ẩn hoặc hiện nhãn thiết bị">A</button>
+      <button type="button" data-iso-layer="grid" class="${layers.grid ? "is-on" : ""}" aria-pressed="${layers.grid}" title="Ẩn/hiện lưới nền" aria-label="Ẩn hoặc hiện lưới nền">▦</button>
+    </div>
+    <div class="iso-callout" role="tooltip" hidden></div>`;
     const svg = host.querySelector("svg");
     const packets = host.querySelector(".iso-packets");
     const nodeEls = new Map();
@@ -452,11 +489,14 @@
     const edgeKind = new Map(layout.edges.map((e) => [e.id, e.kind]));
     const natural = layout.box;
     const vb = { ...natural };
+    const fitBox = { ...natural };
+    let zoom = loadView().zoom;
+    let saveTimer = 0;
 
     function applyView() {
       svg.setAttribute("viewBox", `${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`);
     }
-    function fit() {
+    function baseFit() {
       vb.x = natural.x; vb.y = natural.y; vb.w = natural.w; vb.h = natural.h;
       const rect = svg.getBoundingClientRect();
       const ratio = rect.width > 0 && rect.height > 0 ? rect.width / rect.height : natural.w / natural.h;
@@ -467,9 +507,41 @@
         const extra = natural.w / ratio - natural.h;
         vb.y -= extra / 2; vb.h += extra;
       }
+      fitBox.x = vb.x; fitBox.y = vb.y; fitBox.w = vb.w; fitBox.h = vb.h;
+    }
+    function applyZoom(z, anchor) {
+      zoom = clamp(z, Z_MIN, Z_MAX);
+      const fx = anchor ? clamp((anchor.x - vb.x) / vb.w, 0, 1) : 0.5;
+      const fy = anchor ? clamp((anchor.y - vb.y) / vb.h, 0, 1) : 0.5;
+      const cx = vb.x + vb.w * fx;
+      const cy = vb.y + vb.h * fy;
+      vb.w = fitBox.w / zoom;
+      vb.h = fitBox.h / zoom;
+      vb.x = cx - vb.w * fx;
+      vb.y = cy - vb.h * fy;
       applyView();
     }
-    fit();
+    function applyFit() {
+      baseFit();
+      if (zoom !== 1) applyZoom(zoom);
+      else applyView();
+    }
+    function resetFit() {
+      zoom = 1;
+      saveView({ zoom });
+      baseFit();
+      applyView();
+    }
+    function saveSoon() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => saveView({ zoom }), 250);
+    }
+    function clampPan() {
+      const m = Math.min(vb.w, vb.h) * 0.45;
+      vb.x = clamp(vb.x, fitBox.x - vb.w + m, fitBox.x + fitBox.w - m);
+      vb.y = clamp(vb.y, fitBox.y - vb.h + m, fitBox.y + fitBox.h - m);
+    }
+    applyFit();
 
     function paintPackets(ids) {
       packets.textContent = "";
@@ -516,6 +588,8 @@
 
     const pointers = new Map();
     let drag = null;
+    let panMoved = false;
+    let downNode = null;
     function toView(clientX, clientY) {
       const rect = svg.getBoundingClientRect();
       return {
@@ -526,8 +600,15 @@
     function onPointerDown(e) {
       if (e.button !== undefined && e.button !== 0) return;
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      svg.setPointerCapture(e.pointerId);
-      if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY };
+      try { svg.setPointerCapture(e.pointerId); } catch (err) { /* pointer already released */ }
+      if (pointers.size === 1) {
+        drag = { x: e.clientX, y: e.clientY };
+        panMoved = false;
+        downNode = e.target.closest ? e.target.closest(".iso-node") : null;
+      } else if (pointers.size === 2) {
+        panMoved = true;
+        downNode = null;
+      }
       svg.classList.add("is-grabbing");
     }
     function onPointerMove(e) {
@@ -541,28 +622,29 @@
           const midX = (pts[0].x + pts[1].x) / 2;
           const midY = (pts[0].y + pts[1].y) / 2;
           const anchor = toView(midX, midY);
-          const factor = clamp(drag.dist / Math.max(30, dist), 0.4, 2.5);
-          const nw = clamp(vb.w * factor, natural.w * 0.32, natural.w * 2.8);
-          const ratio = nw / vb.w;
-          vb.w = nw;
-          vb.h *= ratio;
-          vb.x = anchor.x - (anchor.x - vb.x) * ratio;
-          vb.y = anchor.y - (anchor.y - vb.y) * ratio;
-          applyView();
+          applyZoom((fitBox.w / vb.w) * (dist / Math.max(30, drag.dist)), anchor);
+          saveSoon();
         }
         drag = { dist };
         return;
       }
       if (!drag) return;
+      if (!panMoved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 4) panMoved = true;
       const dx = (e.clientX - drag.x) / rect.width * vb.w;
       const dy = (e.clientY - drag.y) / rect.height * vb.h;
       vb.x -= dx; vb.y -= dy;
+      clampPan();
       drag = { x: e.clientX, y: e.clientY };
       applyView();
     }
     function onPointerUp(e) {
       pointers.delete(e.pointerId);
       if (!pointers.size) {
+        if (!panMoved) {
+          if (downNode) pinNode(downNode);
+          else if (pinned) clearPin();
+        }
+        downNode = null;
         drag = null;
         svg.classList.remove("is-grabbing");
       }
@@ -572,36 +654,170 @@
       e.preventDefault();
       const anchor = toView(e.clientX, e.clientY);
       const factor = Math.exp(e.deltaY * 0.0015);
-      const nw = clamp(vb.w * factor, natural.w * 0.32, natural.w * 2.8);
-      const ratio = nw / vb.w;
-      vb.w = nw; vb.h *= ratio;
-      vb.x = anchor.x - (anchor.x - vb.x) * ratio;
-      vb.y = anchor.y - (anchor.y - vb.y) * ratio;
-      applyView();
+      applyZoom((fitBox.w / vb.w) / factor, anchor);
+      saveSoon();
     }
     svg.addEventListener("pointerdown", onPointerDown);
     svg.addEventListener("pointermove", onPointerMove);
     svg.addEventListener("pointerup", onPointerUp);
     svg.addEventListener("pointercancel", onPointerUp);
     svg.addEventListener("wheel", onWheel, { passive: false });
-    svg.addEventListener("dblclick", fit);
-    const onResize = () => fit();
+    svg.addEventListener("dblclick", resetFit);
+    const onResize = () => applyFit();
     window.addEventListener("resize", onResize);
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
     if (ro) ro.observe(host);
 
+    /* ---------- chú thích ghim, lớp nhãn và nút camera ---------- */
+    let hovered = null;
+    let pinned = null;
+    const callout = host.querySelector(".iso-callout");
+
+    function hideCallout() {
+      if (!callout) return;
+      callout.hidden = true;
+      callout.textContent = "";
+    }
+    function placeCallout(node) {
+      if (!callout) return;
+      let data = null;
+      try { data = JSON.parse(node.getAttribute("data-tip") || "null"); } catch (err) { data = null; }
+      if (!data) return;
+      callout.textContent = "";
+      const head = document.createElement("b");
+      head.textContent = data.title;
+      callout.appendChild(head);
+      (data.lines || []).forEach((line) => {
+        const row = document.createElement("span");
+        row.textContent = line;
+        callout.appendChild(row);
+      });
+      const foot = document.createElement("i");
+      foot.textContent = pinned === node ? "Esc để bỏ ghim" : "Nhấp để ghim chú thích";
+      callout.appendChild(foot);
+      callout.hidden = false;
+      const hr = host.getBoundingClientRect();
+      const nr = node.getBoundingClientRect();
+      const cw = callout.offsetWidth;
+      const chh = callout.offsetHeight;
+      let left = nr.left - hr.left + nr.width / 2 - cw / 2;
+      let top = nr.top - hr.top - chh - 8;
+      if (top < 4) top = nr.bottom - hr.top + 8;
+      left = clamp(left, 6, Math.max(6, hr.width - cw - 6));
+      top = clamp(top, 4, Math.max(4, hr.height - chh - 4));
+      callout.style.left = `${left}px`;
+      callout.style.top = `${top}px`;
+    }
+    function refresh() {
+      if (pinned && !pinned.isConnected) pinned = null;
+      if (hovered && !hovered.isConnected) hovered = null;
+      const target = hovered || pinned;
+      if (target && host.contains(target)) placeCallout(target);
+      else hideCallout();
+    }
+    function pinNode(node) {
+      if (pinned && !pinned.isConnected) pinned = null;
+      if (pinned === node) {
+        pinned.classList.remove("is-pinned");
+        pinned = null;
+        hideCallout();
+        return;
+      }
+      if (pinned) pinned.classList.remove("is-pinned");
+      pinned = node;
+      node.classList.add("is-pinned");
+      hovered = null;
+      placeCallout(node);
+    }
+    function clearPin() {
+      if (!pinned) return;
+      pinned.classList.remove("is-pinned");
+      pinned = null;
+      refresh();
+    }
+    function syncLayerButtons() {
+      host.querySelectorAll("[data-iso-layer]").forEach((btn) => {
+        const on = !!layers[btn.dataset.isoLayer];
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-pressed", String(on));
+      });
+    }
+    function toggleLayer(key) {
+      layers[key] = !layers[key];
+      saveLayers(layers);
+      host.classList.toggle("hide-labels", !layers.labels);
+      host.classList.toggle("hide-grid", !layers.grid);
+      syncLayerButtons();
+    }
+    function onDocKey(event) {
+      if (event.key === "Escape" && pinned) clearPin();
+    }
+    document.addEventListener("keydown", onDocKey);
+    syncLayerButtons();
+
+    host.addEventListener("click", (event) => {
+      const zoomBtn = event.target.closest ? event.target.closest("[data-iso-zoom]") : null;
+      if (zoomBtn) {
+        const act = zoomBtn.dataset.isoZoom;
+        if (act === "fit") resetFit();
+        else applyZoom(zoom * (act === "in" ? 1.2 : 1 / 1.2));
+        saveSoon();
+        return;
+      }
+      const layerBtn = event.target.closest ? event.target.closest("[data-iso-layer]") : null;
+      if (layerBtn) { toggleLayer(layerBtn.dataset.isoLayer); return; }
+    });
+    host.addEventListener("pointerover", (event) => {
+      const node = event.target.closest ? event.target.closest(".iso-node") : null;
+      if (!node) return;
+      hovered = node;
+      refresh();
+    });
+    host.addEventListener("pointerout", (event) => {
+      const node = event.target.closest ? event.target.closest(".iso-node") : null;
+      if (!node) return;
+      if (event.relatedTarget && node.contains(event.relatedTarget)) return;
+      if (hovered === node) hovered = null;
+      refresh();
+    });
+    host.addEventListener("focusin", (event) => {
+      const node = event.target.closest ? event.target.closest(".iso-node") : null;
+      if (!node) return;
+      hovered = node;
+      placeCallout(node);
+    });
+    host.addEventListener("focusout", (event) => {
+      const node = event.target.closest ? event.target.closest(".iso-node") : null;
+      if (!node) return;
+      if (hovered === node) hovered = null;
+      refresh();
+    });
+    host.addEventListener("keydown", (event) => {
+      const node = event.target.closest ? event.target.closest(".iso-node") : null;
+      if (!node) return;
+      if (event.key === "Enter" || event.code === "Space") {
+        event.preventDefault();
+        event.stopPropagation();
+        pinNode(node);
+      } else if (event.key === "Escape") {
+        clearPin();
+      }
+    });
+
     return {
       applyStep,
-      fit,
+      fit: resetFit,
       destroy() {
         svg.removeEventListener("pointerdown", onPointerDown);
         svg.removeEventListener("pointermove", onPointerMove);
         svg.removeEventListener("pointerup", onPointerUp);
         svg.removeEventListener("pointercancel", onPointerUp);
         svg.removeEventListener("wheel", onWheel);
-        svg.removeEventListener("dblclick", fit);
+        svg.removeEventListener("dblclick", resetFit);
         window.removeEventListener("resize", onResize);
         if (ro) ro.disconnect();
+        document.removeEventListener("keydown", onDocKey);
+        clearTimeout(saveTimer);
         host.innerHTML = "";
       }
     };

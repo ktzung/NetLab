@@ -1815,3 +1815,64 @@ body[data-theme="dark"] .toast { background: var(--lime); color: #0c1624; }
   .stage-canvas.is-seq { scroll-behavior: auto; }
   .stage-tab, .trace-row td { transition: none !important; }
 }
+
+/* Tương tác sân khấu isometric: camera, chú thích ghim, lớp nhãn */
+.iso-node { cursor: pointer; outline: none; }
+.iso-node:hover:not(.is-active) .iso-rig { transform: translateY(-3px); }
+.iso-node:focus-visible .iso-base-ring { opacity: .8; stroke-dasharray: none; }
+.iso-node.is-pinned .iso-base-ring { opacity: .85; animation: none; }
+.iso-stage.hide-labels .iso-label,
+.iso-stage.hide-labels .iso-sub,
+.iso-stage.hide-labels .iso-edge-labels { display: none; }
+.iso-stage.hide-grid .iso-grid { display: none; }
+
+.iso-tools {
+  position: absolute; top: 8px; right: 8px; z-index: 5;
+  display: flex; gap: 4px;
+}
+.iso-tools button {
+  width: 26px; height: 26px; padding: 0; border-radius: 7px;
+  border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--text-soft); font-family: var(--font-mono); font-size: 12px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+.iso-tools button:hover { color: var(--text); border-color: var(--line-strong); }
+.iso-tools button.is-on {
+  color: var(--blue); border-color: color-mix(in srgb, var(--blue) 46%, var(--line));
+  background: var(--blue-soft);
+}
+
+.iso-callout {
+  position: absolute; z-index: 6; max-width: min(250px, 78vw);
+  padding: 8px 10px; border-radius: 9px; pointer-events: none;
+  background: var(--panel); border: 1px solid var(--line-strong);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--ink) 18%, transparent);
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: 11.5px; color: var(--text);
+}
+.iso-callout[hidden] { display: none; }
+.iso-callout b { font-family: var(--font-mono); font-size: 11px; color: var(--blue); }
+.iso-callout span { color: var(--text-soft); }
+.iso-callout i { font-style: normal; font-size: 9.5px; color: var(--text-faint); margin-top: 2px; }
+
+@keyframes isoNodeFade { from { opacity: 0; } }
+@keyframes isoArtRise { from { opacity: 0; transform: translateY(7px); } }
+.iso-stage.is-fresh .iso-node {
+  animation: isoNodeFade .32s ease backwards;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+.iso-stage.is-fresh .iso-art {
+  animation: isoArtRise .38s cubic-bezier(.2, .7, .2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+.iso-stage.is-fresh .iso-edge-group {
+  animation: isoNodeFade .5s ease backwards;
+  animation-delay: .12s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .iso-node:hover:not(.is-active) .iso-rig { transform: none; }
+  .iso-stage.is-fresh .iso-node,
+  .iso-stage.is-fresh .iso-art,
+  .iso-stage.is-fresh .iso-edge-group { animation: none; }
+}

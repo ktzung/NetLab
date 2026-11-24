@@ -983,7 +983,7 @@
       return "Nhấn một sự kiện để mở bước · T về sơ đồ · ← → chuyển bước";
     }
     return state.lesson.iso
-      ? "Kéo để rê · chụm hai ngón để phóng to · nhấp đúp hoặc 0 để vừa khung · T xem chuỗi gói tin"
+      ? "Kéo để rê · chụm hoặc ⌘+cuộn để phóng · chạm thiết bị để xem chi tiết · 0 vừa khung · T xem chuỗi gói tin"
       : "← → chuyển bước · Space phát · R phát lại · T xem chuỗi gói tin";
   }
 
